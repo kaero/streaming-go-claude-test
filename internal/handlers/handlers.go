@@ -8,20 +8,39 @@ import (
 	"strings"
 
 	"github.com/kaero/streaming/config"
+	"github.com/kaero/streaming/internal/templates"
 	"github.com/kaero/streaming/internal/transcoder"
 )
 
 // Handler holds all HTTP handlers for the streaming server
 type Handler struct {
-	config *config.Config
-	tm     *transcoder.Manager
+	config    *config.Config
+	tm        *transcoder.Manager
+	templates *templates.Templates
+}
+
+// Video represents a video file with metadata
+type Video struct {
+	Name   string
+	SizeMB int64
+}
+
+// ListData holds data for the list template
+type ListData struct {
+	Videos []Video
+}
+
+// PlayerData holds data for the player template
+type PlayerData struct {
+	VideoFile string
 }
 
 // NewHandler creates a new Handler instance
-func NewHandler(cfg *config.Config, tm *transcoder.Manager) *Handler {
+func NewHandler(cfg *config.Config, tm *transcoder.Manager, tmpl *templates.Templates) *Handler {
 	return &Handler{
-		config: cfg,
-		tm:     tm,
+		config:    cfg,
+		tm:        tm,
+		templates: tmpl,
 	}
 }
 
@@ -106,25 +125,9 @@ func (h *Handler) ListVideosHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Create a simple HTML page with links to videos
-	html := `<!DOCTYPE html>
-<html>
-<head>
-    <title>Go Video Streaming Server</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { color: #333; }
-        ul { list-style-type: none; padding: 0; }
-        li { margin: 10px 0; padding: 10px; background-color: #f5f5f5; border-radius: 5px; }
-        a { color: #007bff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-    <h1>Available Videos</h1>
-    <ul>`
+	var videos []Video
 	
-	// List all video files
+	// Collect all video files
 	for _, file := range files {
 		if !file.IsDir() {
 			fileInfo, err := file.Info()
@@ -135,26 +138,23 @@ func (h *Handler) ListVideosHandler(w http.ResponseWriter, r *http.Request) {
 			ext := strings.ToLower(filepath.Ext(file.Name()))
 			// Only list video files
 			if ext == ".mp4" || ext == ".mkv" || ext == ".avi" || ext == ".mov" || ext == ".webm" {
-				html += fmt.Sprintf(`
-        <li>
-            <a href="/video/%s">%s</a>
-            <div>Size: %d MB</div>
-        </li>`, 
-				file.Name(), 
-				file.Name(), 
-				fileInfo.Size() / (1024 * 1024))
+				videos = append(videos, Video{
+					Name:   file.Name(),
+					SizeMB: fileInfo.Size() / (1024 * 1024),
+				})
 			}
 		}
 	}
 	
-	html += `
-    </ul>
-    <p><em>Note: Videos are transcoded on first access which may take some time depending on the file size.</em></p>
-</body>
-</html>`
+	data := ListData{
+		Videos: videos,
+	}
 	
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	err = h.templates.ListTemplate(w, data)
+	if err != nil {
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+	}
 }
 
 // PlayerHandler serves a simple video player for a specific video
@@ -166,48 +166,13 @@ func (h *Handler) PlayerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Create a simple HTML page with video.js player
-	html := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-    <title>%s - Video Player</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.11.4/video-js.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.11.4/video.min.js"></script>
-    <style>
-        body { margin: 0; padding: 20px; background-color: #f5f5f5; font-family: Arial, sans-serif; }
-        .container { max-width: 900px; margin: 0 auto; }
-        h1 { color: #333; }
-        .video-container { background-color: #000; border-radius: 5px; overflow: hidden; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>%s</h1>
-        <div class="video-container">
-            <video id="my-player" class="video-js vjs-big-play-centered vjs-fluid" controls preload="auto">
-                <source src="/video/%s" type="application/x-mpegURL">
-                <p class="vjs-no-js">
-                    To view this video please enable JavaScript, and consider upgrading to a
-                    web browser that <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-                </p>
-            </video>
-        </div>
-    </div>
-
-    <script>
-        var player = videojs('my-player', {
-            fluid: true,
-            responsive: true,
-            html5: {
-                hls: {
-                    overrideNative: true
-                }
-            }
-        });
-    </script>
-</body>
-</html>`, videoFile, videoFile, videoFile)
+	data := PlayerData{
+		VideoFile: videoFile,
+	}
 	
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	err := h.templates.PlayerTemplate(w, data)
+	if err != nil {
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+	}
 }

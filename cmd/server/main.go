@@ -7,6 +7,7 @@ import (
 
 	"github.com/kaero/streaming/config"
 	"github.com/kaero/streaming/internal/handlers"
+	"github.com/kaero/streaming/internal/templates"
 	"github.com/kaero/streaming/internal/transcoder"
 	"github.com/kaero/streaming/internal/utils"
 )
@@ -22,9 +23,12 @@ func main() {
 
 	// Create transcoding manager
 	tm := transcoder.NewManager(cfg)
+	
+	// Initialize templates
+	tmpl := templates.New()
 
 	// Create HTTP handlers
-	h := handlers.NewHandler(cfg, tm)
+	h := handlers.NewHandler(cfg, tm, tmpl)
 
 	// Setup HTTP routes
 	http.HandleFunc("/", h.ListVideosHandler)

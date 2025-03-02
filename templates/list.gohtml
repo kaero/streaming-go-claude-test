@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Go Video Streaming Server</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin: 10px 0; padding: 10px; background-color: #f5f5f5; border-radius: 5px; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>Available Videos</h1>
+    <ul>
+        {{range .Videos}}
+        <li>
+            <a href="/video/{{.Name}}">{{.Name}}</a>
+            <div>Size: {{.SizeMB}} MB</div>
+        </li>
+        {{end}}
+    </ul>
+    <p><em>Note: Videos are transcoded on first access which may take some time depending on the file size.</em></p>
+</body>
+</html>
