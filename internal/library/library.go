@@ -311,5 +311,5 @@ func isVideoFile(ext string) bool {
 // Close closes the library manager
 func (m *Manager) Close() {
 	m.StopWatching()
-	close(m.stopChan)
+	// The stopChan is already closed in StopWatching()
 }

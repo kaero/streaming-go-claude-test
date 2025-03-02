@@ -28,7 +28,7 @@ type Video struct {
 	Size         int64
 	Duration     float64
 	Status       VideoStatus
-	ErrorMessage string
+	ErrorMessage sql.NullString // Change to sql.NullString to handle NULL values
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -92,7 +92,7 @@ func (d *DB) initSchema() error {
 // AddVideo adds a new video to the database
 func (d *DB) AddVideo(filename, path string, size int64) (int64, error) {
 	result, err := d.db.Exec(
-		"INSERT INTO videos (filename, path, size, status) VALUES (?, ?, ?, ?)",
+		"INSERT INTO videos (filename, path, size, status, error_message) VALUES (?, ?, ?, ?, NULL)",
 		filename, path, size, StatusPending,
 	)
 	if err != nil {
@@ -223,7 +223,7 @@ func (d *DB) ListVideosByStatus(status VideoStatus) ([]*Video, error) {
 func (d *DB) UpdateVideoStatus(id int64, status VideoStatus, errorMsg string) error {
 	_, err := d.db.Exec(
 		"UPDATE videos SET status = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-		status, errorMsg, id,
+		status, sql.NullString{String: errorMsg, Valid: errorMsg != ""}, id,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update video status: %w", err)
@@ -240,7 +240,7 @@ func (d *DB) SetVideoProcessing(id int64) error {
 // SetVideoReady marks a video as ready
 func (d *DB) SetVideoReady(id int64, duration float64) error {
 	_, err := d.db.Exec(
-		"UPDATE videos SET status = ?, duration = ?, error_message = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		"UPDATE videos SET status = ?, duration = ?, error_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
 		StatusReady, duration, id,
 	)
 	if err != nil {

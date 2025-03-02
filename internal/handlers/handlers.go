@@ -183,8 +183,8 @@ func (h *Handler) ListVideosHandler(w http.ResponseWriter, r *http.Request) {
 	for _, dbVideo := range dbVideos {
 		canPlay := dbVideo.Status == database.StatusReady
 		errorMsg := ""
-		if dbVideo.Status == database.StatusError {
-			errorMsg = dbVideo.ErrorMessage
+		if dbVideo.Status == database.StatusError && dbVideo.ErrorMessage.Valid {
+			errorMsg = dbVideo.ErrorMessage.String
 		}
 		
 		videos = append(videos, VideoView{
