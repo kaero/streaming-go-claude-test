@@ -18,3 +18,7 @@
 - Limit line length to ~100 characters
 - Use context for cancellation when appropriate
 - Keep functions focused and under ~50 lines where possible
+
+## Commit Guidelines
+- Include the source prompts in all commit messages
+- Format: Start with a brief summary, then add "Prompt: <original prompt>" on a new line
