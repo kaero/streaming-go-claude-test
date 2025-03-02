@@ -150,7 +150,7 @@ func (h *Handler) ListVideosHandler(w http.ResponseWriter, r *http.Request) {
 		Videos: videos,
 	}
 	
-	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	err = h.templates.ListTemplate(w, data)
 	if err != nil {
 		http.Error(w, "Error rendering template", http.StatusInternalServerError)
@@ -170,7 +170,7 @@ func (h *Handler) PlayerHandler(w http.ResponseWriter, r *http.Request) {
 		VideoFile: videoFile,
 	}
 	
-	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	err := h.templates.PlayerTemplate(w, data)
 	if err != nil {
 		http.Error(w, "Error rendering template", http.StatusInternalServerError)
