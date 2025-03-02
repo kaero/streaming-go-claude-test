@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/kaero/streaming/config"
 	"github.com/kaero/streaming/internal/transcoder"
