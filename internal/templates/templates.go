@@ -7,7 +7,7 @@ import (
 	"log"
 )
 
-//go:embed ../../templates/*.gohtml
+//go:embed templates/*.gohtml
 var templateFS embed.FS
 
 // Templates holds parsed templates
@@ -23,12 +23,12 @@ func New() *Templates {
 	// Parse templates from embedded filesystem
 	var err error
 	
-	t.list, err = template.ParseFS(templateFS, "../../templates/list.gohtml")
+	t.list, err = template.ParseFS(templateFS, "templates/list.gohtml")
 	if err != nil {
 		log.Fatalf("Failed to parse list template: %v", err)
 	}
 	
-	t.player, err = template.ParseFS(templateFS, "../../templates/player.gohtml")
+	t.player, err = template.ParseFS(templateFS, "templates/player.gohtml")
 	if err != nil {
 		log.Fatalf("Failed to parse player template: %v", err)
 	}
