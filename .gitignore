@@ -4,8 +4,8 @@
 *.dll
 *.so
 *.dylib
-server
-streaming
+/server
+/streaming
 
 # Test binary, built with `go test -c`
 *.test
@@ -17,5 +17,5 @@ streaming
 .idea/
 .vscode/
 
-media/
-cache/
+/media/
+/cache/

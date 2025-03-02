@@ -54,14 +54,14 @@ func (h *Handler) VideoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// Check if the requested file exists
-	videoPath := filepath.Join(h.config.MediaDir, videoFile)
+	videoPath := filepath.Join(h.config.Media.MediaDir, videoFile)
 	if _, err := os.Stat(videoPath); os.IsNotExist(err) {
 		http.Error(w, "Video file not found", http.StatusNotFound)
 		return
 	}
 	
 	// Create the output directory path
-	outputDir := filepath.Join(h.config.CacheDir, strings.TrimSuffix(videoFile, filepath.Ext(videoFile)))
+	outputDir := filepath.Join(h.config.Media.CacheDir, strings.TrimSuffix(videoFile, filepath.Ext(videoFile)))
 	masterPlaylist := filepath.Join(outputDir, videoFile+".m3u8")
 	
 	// Check if master playlist already exists
@@ -76,7 +76,7 @@ func (h *Handler) VideoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// Redirect to the master playlist
-	relativePlaylist := strings.TrimPrefix(masterPlaylist, h.config.CacheDir+"/")
+	relativePlaylist := strings.TrimPrefix(masterPlaylist, h.config.Media.CacheDir+"/")
 	http.Redirect(w, r, "/stream/"+relativePlaylist, http.StatusFound)
 }
 
@@ -84,7 +84,7 @@ func (h *Handler) VideoHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract the file path from the request
 	filePath := strings.TrimPrefix(r.URL.Path, "/stream/")
-	fullPath := filepath.Join(h.config.CacheDir, filePath)
+	fullPath := filepath.Join(h.config.Media.CacheDir, filePath)
 	
 	// Check if the file exists
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
@@ -119,7 +119,7 @@ func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
 
 // ListVideosHandler serves a simple UI listing available videos
 func (h *Handler) ListVideosHandler(w http.ResponseWriter, r *http.Request) {
-	files, err := os.ReadDir(h.config.MediaDir)
+	files, err := os.ReadDir(h.config.Media.MediaDir)
 	if err != nil {
 		http.Error(w, "Error reading media directory", http.StatusInternalServerError)
 		return

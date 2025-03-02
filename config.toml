@@ -1,0 +1,11 @@
+[media]
+cache_dir = '/var/home/kaero/Code/streaming/cache'
+media_dir = '/var/home/kaero/Code/streaming/media'
+
+[server]
+host = '0.0.0.0'
+playlist_entries = 6
+port = 8080
+segment_duration = 10
+segment_format = 'mpegts'
+transcode_preset = 'ultrafast'

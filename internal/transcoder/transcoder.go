@@ -80,7 +80,7 @@ func (tm *Manager) TranscodeToHLS(job VideoJob) error {
 		"-i", job.SourceFile,
 		"-c:v", "libx264",
 		"-crf", "23",
-		"-preset", tm.config.TranscodePreset,
+		"-preset", tm.config.Server.TranscodePreset,
 		"-c:a", "aac",
 		"-b:a", "128k",
 	}
@@ -99,8 +99,8 @@ func (tm *Manager) TranscodeToHLS(job VideoJob) error {
 	args = append(args, 
 		"-f", "hls",
 		"-hls_time", strconv.Itoa(job.SegmentDuration),
-		"-hls_segment_type", tm.config.SegmentFormat,
-		"-hls_list_size", strconv.Itoa(tm.config.PlaylistEntries),
+		"-hls_segment_type", tm.config.Server.SegmentFormat,
+		"-hls_list_size", strconv.Itoa(tm.config.Server.PlaylistEntries),
 		"-hls_playlist_type", "event",
 		"-hls_segment_filename", fmt.Sprintf("%s%%03d.ts", strings.TrimSuffix(job.OutputPath, ".m3u8")),
 		job.OutputPath,
@@ -153,7 +153,7 @@ func GenerateHLSMasterPlaylist(videoFile, outputDir string, qualities []map[stri
 func (tm *Manager) PrepareVideo(videoPath string) (string, error) {
 	// Create destination directory
 	videoFileName := filepath.Base(videoPath)
-	outputDir := filepath.Join(tm.config.CacheDir, strings.TrimSuffix(videoFileName, filepath.Ext(videoFileName)))
+	outputDir := filepath.Join(tm.config.Media.CacheDir, strings.TrimSuffix(videoFileName, filepath.Ext(videoFileName)))
 	
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return "", err
@@ -185,7 +185,7 @@ func (tm *Manager) PrepareVideo(videoPath string) (string, error) {
 				Width:           width,
 				Height:          height,
 				Bitrate:         q["bitrate"],
-				SegmentDuration: tm.config.SegmentDuration,
+				SegmentDuration: tm.config.Server.SegmentDuration,
 			}
 			
 			if err := tm.TranscodeToHLS(job); err != nil {

@@ -1,0 +1,21 @@
+# Streaming Server Configuration
+
+[server]
+# Host address to bind to. Use 0.0.0.0 to listen on all interfaces
+host = "0.0.0.0"
+# Port to listen on
+port = 8080
+# FFmpeg transcoding preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
+transcode_preset = "ultrafast"
+# Segment format (mpegts recommended for better compatibility)
+segment_format = "mpegts"
+# Duration of each segment in seconds
+segment_duration = 10
+# Number of segments to keep in the playlist
+playlist_entries = 6
+
+[media]
+# Directory containing media files
+media_dir = "/var/home/kaero/Code/streaming/media"
+# Directory for cached transcoded files
+cache_dir = "/var/home/kaero/Code/streaming/cache"
