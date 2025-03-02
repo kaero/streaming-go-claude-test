@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/kaero/streaming/config"
+	"github.com/kaero/streaming/internal/database"
 	"github.com/kaero/streaming/internal/handlers"
 	"github.com/kaero/streaming/internal/templates"
 	"github.com/kaero/streaming/internal/transcoder"
@@ -31,6 +32,9 @@ func runServer() error {
 	if cacheDir != "" {
 		cfg.Media.CacheDir = cacheDir
 	}
+	if dbPath != "" {
+		cfg.Database.Path = dbPath
+	}
 	if listenHost != "" {
 		cfg.Server.Host = listenHost
 	}
@@ -43,6 +47,13 @@ func runServer() error {
 		return fmt.Errorf("error creating directories: %w", err)
 	}
 
+	// Initialize database
+	db, err := database.New(cfg.Database.Path)
+	if err != nil {
+		return fmt.Errorf("error initializing database: %w", err)
+	}
+	defer db.Close()
+
 	// Create transcoding manager
 	tm := transcoder.NewManager(cfg)
 	
@@ -50,7 +61,7 @@ func runServer() error {
 	tmpl := templates.New()
 
 	// Create HTTP handlers
-	h := handlers.NewHandler(cfg, tm, tmpl)
+	h := handlers.NewHandler(cfg, tm, tmpl, db)
 
 	// Setup HTTP routes
 	mux := http.NewServeMux()
@@ -77,9 +88,21 @@ func runServer() error {
 		log.Printf("Starting server on http://%s", serverAddr)
 		log.Printf("Media directory: %s", cfg.Media.MediaDir)
 		log.Printf("Cache directory: %s", cfg.Media.CacheDir)
+		log.Printf("Database path: %s", cfg.Database.Path)
 		
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Error starting server: %v", err)
+		}
+	}()
+
+	// Handle refresh requests from the web UI
+	refreshCh := h.RefreshChannel()
+	
+	go func() {
+		for range refreshCh {
+			log.Println("Received library refresh request from web UI")
+			// In a real implementation, we would communicate to the librarian service
+			// For now, we'll just log the request
 		}
 	}()
 

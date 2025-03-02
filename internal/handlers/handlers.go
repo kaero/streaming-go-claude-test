@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/kaero/streaming/config"
+	"github.com/kaero/streaming/internal/database"
 	"github.com/kaero/streaming/internal/templates"
 	"github.com/kaero/streaming/internal/transcoder"
 )
@@ -17,17 +18,23 @@ type Handler struct {
 	config    *config.Config
 	tm        *transcoder.Manager
 	templates *templates.Templates
+	db        *database.DB
+	refreshCh chan struct{}
 }
 
-// Video represents a video file with metadata
-type Video struct {
-	Name   string
-	SizeMB int64
+// VideoView represents a video file with UI metadata
+type VideoView struct {
+	Name     string
+	SizeMB   int64
+	Status   string
+	CanPlay  bool
+	ErrorMsg string
 }
 
 // ListData holds data for the list template
 type ListData struct {
-	Videos []Video
+	Videos   []VideoView
+	ShowScan bool
 }
 
 // PlayerData holds data for the player template
@@ -36,11 +43,13 @@ type PlayerData struct {
 }
 
 // NewHandler creates a new Handler instance
-func NewHandler(cfg *config.Config, tm *transcoder.Manager, tmpl *templates.Templates) *Handler {
+func NewHandler(cfg *config.Config, tm *transcoder.Manager, tmpl *templates.Templates, db *database.DB) *Handler {
 	return &Handler{
 		config:    cfg,
 		tm:        tm,
 		templates: tmpl,
+		db:        db,
+		refreshCh: make(chan struct{}, 1),
 	}
 }
 
@@ -53,10 +62,42 @@ func (h *Handler) VideoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Check if the requested file exists
+	// Check if the requested file exists in the database
 	videoPath := filepath.Join(h.config.Media.MediaDir, videoFile)
-	if _, err := os.Stat(videoPath); os.IsNotExist(err) {
-		http.Error(w, "Video file not found", http.StatusNotFound)
+	dbVideo, err := h.db.GetVideoByPath(videoPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error retrieving video from database: %v", err), http.StatusInternalServerError)
+		return
+	}
+	
+	// If the video isn't in the database, check if the file exists 
+	// and return an error - videos must be processed by the librarian first
+	if dbVideo == nil {
+		if _, err := os.Stat(videoPath); os.IsNotExist(err) {
+			http.Error(w, "Video file not found", http.StatusNotFound)
+			return
+		}
+		
+		http.Error(w, "Video exists but hasn't been processed yet", http.StatusPreconditionFailed)
+		return
+	}
+	
+	// Check the status of the video
+	switch dbVideo.Status {
+	case database.StatusPending, database.StatusProcessing:
+		http.Error(w, "Video is still being processed, please wait", http.StatusAccepted)
+		return
+		
+	case database.StatusError:
+		http.Error(w, fmt.Sprintf("Error processing video: %s", dbVideo.ErrorMessage), http.StatusInternalServerError)
+		return
+		
+	case database.StatusReady:
+		// Video is ready, continue to serve it
+		break
+		
+	default:
+		http.Error(w, "Unknown video status", http.StatusInternalServerError)
 		return
 	}
 	
@@ -64,15 +105,10 @@ func (h *Handler) VideoHandler(w http.ResponseWriter, r *http.Request) {
 	outputDir := filepath.Join(h.config.Media.CacheDir, strings.TrimSuffix(videoFile, filepath.Ext(videoFile)))
 	masterPlaylist := filepath.Join(outputDir, videoFile+".m3u8")
 	
-	// Check if master playlist already exists
+	// Check if master playlist exists
 	if _, err := os.Stat(masterPlaylist); os.IsNotExist(err) {
-		// Prepare video for streaming (transcoding)
-		var err error
-		masterPlaylist, err = h.tm.PrepareVideo(videoPath)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Error preparing video: %v", err), http.StatusInternalServerError)
-			return
-		}
+		http.Error(w, "Video playlist not found, reprocess the video", http.StatusNotFound)
+		return
 	}
 	
 	// Redirect to the master playlist
@@ -119,35 +155,93 @@ func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
 
 // ListVideosHandler serves a simple UI listing available videos
 func (h *Handler) ListVideosHandler(w http.ResponseWriter, r *http.Request) {
-	files, err := os.ReadDir(h.config.Media.MediaDir)
-	if err != nil {
-		http.Error(w, "Error reading media directory", http.StatusInternalServerError)
+	// Handle the scan library action
+	if r.URL.Query().Get("scan") == "true" {
+		// Send a refresh signal
+		select {
+		case h.refreshCh <- struct{}{}:
+			// Signal sent successfully
+		default:
+			// Channel is full, a refresh is already pending
+		}
+		
+		// Redirect back to the list page
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 	
-	var videos []Video
+	// Get all videos from the database
+	dbVideos, err := h.db.ListVideos()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error retrieving videos from database: %v", err), http.StatusInternalServerError)
+		return
+	}
 	
-	// Collect all video files
-	for _, file := range files {
-		if !file.IsDir() {
+	var videos []VideoView
+	
+	// Convert database videos to view models
+	for _, dbVideo := range dbVideos {
+		canPlay := dbVideo.Status == database.StatusReady
+		errorMsg := ""
+		if dbVideo.Status == database.StatusError {
+			errorMsg = dbVideo.ErrorMessage
+		}
+		
+		videos = append(videos, VideoView{
+			Name:     dbVideo.Filename,
+			SizeMB:   dbVideo.Size / (1024 * 1024),
+			Status:   string(dbVideo.Status),
+			CanPlay:  canPlay,
+			ErrorMsg: errorMsg,
+		})
+	}
+	
+	// Check for files in the media directory that aren't in the database
+	files, err := os.ReadDir(h.config.Media.MediaDir)
+	if err != nil {
+		// Log the error but continue with whatever we have from the database
+		fmt.Printf("Error reading media directory: %v\n", err)
+	} else {
+		// Check for video files not in the database
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			
 			fileInfo, err := file.Info()
 			if err != nil {
 				continue
 			}
 			
 			ext := strings.ToLower(filepath.Ext(file.Name()))
-			// Only list video files
+			// Check if it's a video file
 			if ext == ".mp4" || ext == ".mkv" || ext == ".avi" || ext == ".mov" || ext == ".webm" {
-				videos = append(videos, Video{
-					Name:   file.Name(),
-					SizeMB: fileInfo.Size() / (1024 * 1024),
-				})
+				// Check if this file is already in the videos list
+				found := false
+				for _, v := range videos {
+					if v.Name == file.Name() {
+						found = true
+						break
+					}
+				}
+				
+				// If not found, add it as an unprocessed video
+				if !found {
+					videos = append(videos, VideoView{
+						Name:     file.Name(),
+						SizeMB:   fileInfo.Size() / (1024 * 1024),
+						Status:   "unprocessed",
+						CanPlay:  false,
+						ErrorMsg: "Video has not been processed yet",
+					})
+				}
 			}
 		}
 	}
 	
 	data := ListData{
-		Videos: videos,
+		Videos:   videos,
+		ShowScan: true,
 	}
 	
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -166,13 +260,38 @@ func (h *Handler) PlayerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	// Check if the video is ready for playing
+	videoPath := filepath.Join(h.config.Media.MediaDir, videoFile)
+	dbVideo, err := h.db.GetVideoByPath(videoPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error retrieving video from database: %v", err), http.StatusInternalServerError)
+		return
+	}
+	
+	// Check if the video exists
+	if dbVideo == nil {
+		http.Error(w, "Video not found in the library", http.StatusNotFound)
+		return
+	}
+	
+	// Check if the video is ready
+	if dbVideo.Status != database.StatusReady {
+		http.Error(w, "Video is not ready for playback", http.StatusPreconditionFailed)
+		return
+	}
+	
 	data := PlayerData{
 		VideoFile: videoFile,
 	}
 	
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	err := h.templates.PlayerTemplate(w, data)
+	err = h.templates.PlayerTemplate(w, data)
 	if err != nil {
 		http.Error(w, "Error rendering template", http.StatusInternalServerError)
 	}
+}
+
+// RefreshChannel returns a channel that signals when a library refresh is requested
+func (h *Handler) RefreshChannel() <-chan struct{} {
+	return h.refreshCh
 }

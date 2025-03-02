@@ -11,8 +11,10 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Server ServerConfig `mapstructure:"server"`
-	Media  MediaConfig  `mapstructure:"media"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Media    MediaConfig    `mapstructure:"media"`
+	Database DatabaseConfig `mapstructure:"database"`
+	Library  LibraryConfig  `mapstructure:"library"`
 }
 
 // ServerConfig holds server-specific configuration
@@ -31,14 +33,31 @@ type MediaConfig struct {
 	CacheDir string `mapstructure:"cache_dir"`
 }
 
+// DatabaseConfig holds database-specific configuration
+type DatabaseConfig struct {
+	Path string `mapstructure:"path"`
+}
+
+// LibraryConfig holds library processing configuration
+type LibraryConfig struct {
+	ScanOnStart          bool  `mapstructure:"scan_on_start"`
+	WatchForChanges      bool  `mapstructure:"watch_for_changes"`
+	ScanIntervalMinutes  int   `mapstructure:"scan_interval_minutes"`
+	ProcessingThreads    int   `mapstructure:"processing_threads"`
+}
+
 // Default configuration values
 const (
-	DefaultHost            = "0.0.0.0"
-	DefaultPort            = 8080
-	DefaultTranscodePreset = "ultrafast"
-	DefaultSegmentFormat   = "mpegts"
-	DefaultSegmentDuration = 10
-	DefaultPlaylistEntries = 6
+	DefaultHost                   = "0.0.0.0"
+	DefaultPort                   = 8080
+	DefaultTranscodePreset        = "ultrafast"
+	DefaultSegmentFormat          = "mpegts"
+	DefaultSegmentDuration        = 10
+	DefaultPlaylistEntries        = 6
+	DefaultScanOnStart            = true
+	DefaultWatchForChanges        = true
+	DefaultScanIntervalMinutes    = 60
+	DefaultProcessingThreads      = 2
 )
 
 // InitConfig initializes the configuration system
@@ -52,6 +71,12 @@ func InitConfig(cfgFile string) (*Config, error) {
 	v.SetDefault("server.segment_format", DefaultSegmentFormat)
 	v.SetDefault("server.segment_duration", DefaultSegmentDuration)
 	v.SetDefault("server.playlist_entries", DefaultPlaylistEntries)
+	
+	// Library config defaults
+	v.SetDefault("library.scan_on_start", DefaultScanOnStart)
+	v.SetDefault("library.watch_for_changes", DefaultWatchForChanges)
+	v.SetDefault("library.scan_interval_minutes", DefaultScanIntervalMinutes)
+	v.SetDefault("library.processing_threads", DefaultProcessingThreads)
 
 	// Determine default paths based on executable location
 	execDir, err := getExecutableDir()
@@ -61,6 +86,7 @@ func InitConfig(cfgFile string) (*Config, error) {
 
 	v.SetDefault("media.media_dir", filepath.Join(execDir, "media"))
 	v.SetDefault("media.cache_dir", filepath.Join(execDir, "cache"))
+	v.SetDefault("database.path", filepath.Join(execDir, "library.db"))
 
 	// Environment variables
 	v.SetEnvPrefix("STREAMING")
@@ -117,6 +143,12 @@ func WriteDefaultConfig(path string) error {
 	v.SetDefault("server.segment_format", DefaultSegmentFormat)
 	v.SetDefault("server.segment_duration", DefaultSegmentDuration)
 	v.SetDefault("server.playlist_entries", DefaultPlaylistEntries)
+	
+	// Library config defaults
+	v.SetDefault("library.scan_on_start", DefaultScanOnStart)
+	v.SetDefault("library.watch_for_changes", DefaultWatchForChanges)
+	v.SetDefault("library.scan_interval_minutes", DefaultScanIntervalMinutes)
+	v.SetDefault("library.processing_threads", DefaultProcessingThreads)
 
 	// Determine default paths based on executable location
 	execDir, err := getExecutableDir()
@@ -126,6 +158,7 @@ func WriteDefaultConfig(path string) error {
 
 	v.SetDefault("media.media_dir", filepath.Join(execDir, "media"))
 	v.SetDefault("media.cache_dir", filepath.Join(execDir, "cache"))
+	v.SetDefault("database.path", filepath.Join(execDir, "library.db"))
 
 	// Create the directory if it doesn't exist
 	dir := filepath.Dir(path)

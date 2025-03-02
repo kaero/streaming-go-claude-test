@@ -7,31 +7,82 @@
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         h1 { color: #333; }
+        .actions { display: flex; margin: 15px 0; }
+        .scan-btn { 
+            background-color: #0066cc; 
+            color: white; 
+            padding: 8px 16px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .scan-btn:hover { background-color: #0055aa; }
         ul { list-style-type: none; padding: 0; }
         li { margin: 10px 0; padding: 15px; background-color: #f5f5f5; border-radius: 5px; }
         .title { font-size: 1.2rem; font-weight: bold; margin-bottom: 8px; }
-        .size { color: #666; margin-bottom: 10px; }
+        .details { display: flex; justify-content: space-between; margin-bottom: 10px; color: #666; }
+        .status { 
+            display: inline-block; 
+            padding: 3px 8px; 
+            border-radius: 3px; 
+            font-size: 0.8rem; 
+            margin-right: 5px; 
+        }
+        .status.ready { background-color: #d4edda; color: #155724; }
+        .status.pending { background-color: #fff3cd; color: #856404; }
+        .status.processing { background-color: #cce5ff; color: #004085; }
+        .status.error { background-color: #f8d7da; color: #721c24; }
+        .status.unprocessed { background-color: #e2e3e5; color: #383d41; }
+        .error-msg { color: #721c24; font-size: 0.9rem; margin-bottom: 10px; }
         .links { display: flex; gap: 15px; }
         .main-link { font-weight: bold; color: #0066cc; }
         .alt-link { font-size: 0.9rem; color: #666; }
+        .disabled { opacity: 0.5; pointer-events: none; }
         a { text-decoration: none; }
         a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
-    <h1>Available Videos</h1>
+    <h1>Video Library</h1>
+    
+    {{if .ShowScan}}
+    <div class="actions">
+        <a href="/?scan=true" class="scan-btn">🔄 Scan for New Videos</a>
+    </div>
+    {{end}}
+    
     <ul>
         {{range .Videos}}
         <li>
             <div class="title">{{.Name}}</div>
-            <div class="size">Size: {{.SizeMB}} MB</div>
+            <div class="details">
+                <div>
+                    <span class="status {{.Status}}">{{.Status}}</span>
+                    <span>Size: {{.SizeMB}} MB</span>
+                </div>
+            </div>
+            {{if .ErrorMsg}}
+            <div class="error-msg">Error: {{.ErrorMsg}}</div>
+            {{end}}
             <div class="links">
+                {{if .CanPlay}}
                 <a href="/player/{{.Name}}" class="main-link">📺 Watch in Browser</a>
                 <a href="/video/{{.Name}}" class="alt-link">📁 M3U8 Playlist</a>
+                {{else}}
+                <a href="#" class="main-link disabled">📺 Watch in Browser</a>
+                <a href="#" class="alt-link disabled">📁 M3U8 Playlist</a>
+                {{end}}
             </div>
+        </li>
+        {{else}}
+        <li>
+            <div class="title">No videos found in library</div>
+            <p>Click the "Scan for New Videos" button to scan for new videos.</p>
         </li>
         {{end}}
     </ul>
-    <p><em>Note: Videos are transcoded on first access which may take some time depending on the file size.</em></p>
+    <p><em>Note: Videos need to be processed before they can be watched. This may take some time depending on the file size.</em></p>
 </body>
 </html>

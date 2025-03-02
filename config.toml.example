@@ -19,3 +19,17 @@ playlist_entries = 6
 media_dir = "/var/home/kaero/Code/streaming/media"
 # Directory for cached transcoded files
 cache_dir = "/var/home/kaero/Code/streaming/cache"
+
+[database]
+# Path to the SQLite database file
+path = "/var/home/kaero/Code/streaming/library.db"
+
+[library]
+# Whether to scan for new videos on librarian startup
+scan_on_start = true
+# Whether to watch for file system changes
+watch_for_changes = true
+# Interval between scans in minutes (0 to disable)
+scan_interval_minutes = 60
+# Number of parallel processing threads
+processing_threads = 2
